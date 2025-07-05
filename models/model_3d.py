@@ -3,11 +3,27 @@ import os
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import ReplicationPad3d
 
 from experiment_config import config
 
+class SEBlock(nn.Module):
+    def __init__(self, channel, reduction=4):
+        super(SEBlock, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool3d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=True),
+            nn.Sigmoid()
+        )
+    def forward(self, x):
+        b, c, _, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1, 1)
+        return x * y
 
 def get_padding_shape(filter_shape, stride):
     def _pad_top_bottom(filter_dim, stride_val):
@@ -233,10 +249,15 @@ class I3D(torch.nn.Module):
 
         # Mixed 4
         self.mixed_4b = Mixed(480, [192, 96, 208, 16, 48, 64])
+        self.se_4b = SEBlock(512)
         self.mixed_4c = Mixed(512, [160, 112, 224, 24, 64, 64])
+        #self.se_4c = SEBlock(512)
         self.mixed_4d = Mixed(512, [128, 128, 256, 24, 64, 64])
+        #self.se_4d = SEBlock(512)
         self.mixed_4e = Mixed(512, [112, 144, 288, 32, 64, 64])
+        #self.se_4e = SEBlock(528)
         self.mixed_4f = Mixed(528, [256, 160, 320, 32, 128, 128])
+        #self.se_4f = SEBlock(832)
 
         self.maxPool3d_5a_2x2 = MaxPool3dTFPadding(
             kernel_size=(2, 2, 2), stride=(2, 2, 2), padding="SAME"
@@ -244,7 +265,10 @@ class I3D(torch.nn.Module):
 
         # Mixed 5
         self.mixed_5b = Mixed(832, [256, 160, 320, 32, 128, 128])
+        #self.se_5b = SEBlock(832)
         self.mixed_5c = Mixed(832, [384, 192, 384, 48, 128, 128])
+        #self.se_5c = SEBlock(1024)
+        
 
         self.avg_pool = torch.nn.AvgPool3d((2, 7, 7), (1, 1, 1))
         self.dropout = torch.nn.Dropout(dropout_prob)
@@ -261,7 +285,16 @@ class I3D(torch.nn.Module):
                 use_bn=False,
             )
             # load model
-            self.load_state_dict(torch.load(config.MODEL_RGB_I3D))
+            print("🧠 Loading pretrained weights...")
+            # 加载预训练参数字典
+            state_dict = torch.load(config.MODEL_RGB_I3D)
+            # 加载参数，并允许有结构差异（strict=False）
+            result = self.load_state_dict(state_dict, strict=False)
+            print("✅ Pretrained weights loaded (non-strict mode).")
+            if result.missing_keys:
+                print("Missing keys (new parameters, e.g., SE blocks):", result.missing_keys)
+            if result.unexpected_keys:
+                print("Unexpected keys (not in model):", result.unexpected_keys)
 
         # freeze batchnorm
         self.train()
@@ -278,7 +311,7 @@ class I3D(torch.nn.Module):
     def forward(self, inp):
         if self.input_channels == 3 and inp.shape[1] == 1:
             inp = inp.expand(-1, 3, -1, -1, -1)
-        # Preprocessing
+    # Preprocessing
         out = self.conv3d_1a_7x7(inp)
         out = self.maxPool3d_2a_3x3(out)
         out = self.conv3d_2b_1x1(out)
@@ -287,18 +320,55 @@ class I3D(torch.nn.Module):
         out = self.mixed_3b(out)
         out = self.mixed_3c(out)
         out = self.maxPool3d_4a_3x3(out)
+
+        def print_stats(name, x):
+            if not hasattr(self, "_dbg_printed"):
+                print(f"[DEBUG] {name}: shape={x.shape}, mean={x.mean().item():.4f}, std={x.std().item():.4f}")
+
         out = self.mixed_4b(out)
+        print_stats("mixed_4b", out)
+        out = self.se_4b(out)
+        print_stats("se_4b", out)
+
         out = self.mixed_4c(out)
+        print_stats("mixed_4c", out)
+        #out = self.se_4c(out)
+        #print_stats("se_4c", out)
+
         out = self.mixed_4d(out)
+        print_stats("mixed_4d", out)
+        #out = self.se_4d(out)
+        #print_stats("se_4d", out)
+
         out = self.mixed_4e(out)
+        print_stats("mixed_4e", out)
+        #out = self.se_4e(out)
+        #print_stats("se_4e", out)
+
         out = self.mixed_4f(out)
+        print_stats("mixed_4f", out)
+        #out = self.se_4f(out)
+        #print_stats("se_4f", out)
+
         out = self.maxPool3d_5a_2x2(out)
+
         out = self.mixed_5b(out)
+        print_stats("mixed_5b", out)
+        #out = self.se_5b(out)
+        #print_stats("se_5b", out)
+
         out = self.mixed_5c(out)
+        print_stats("mixed_5c", out)
+        #out = self.se_5c(out)
+        #print_stats("se_5c", out)
+
         out = torch.nn.AvgPool3d((2, 2, 2), (1, 1, 1))(out)
         out = self.dropout(out)
         out = self.conv3d_0c_1x1(out)
         out = out.mean(2).reshape(out.shape[0])
+
+    # 只打印一次
+        self._dbg_printed = True
 
         return out
 

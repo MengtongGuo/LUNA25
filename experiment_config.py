@@ -5,7 +5,7 @@ class Configuration(object):
     def __init__(self) -> None:
 
         # Working directory
-        self.WORKDIR = Path("C:/temp/luna25-baseline")
+        self.WORKDIR = Path("/Users/a19275473134/Desktop/luna25/Practical-luna25")
         self.RESOURCES = self.WORKDIR / "resources"
         # Starting weights for the I3D model
         self.MODEL_RGB_I3D = (
@@ -14,9 +14,9 @@ class Configuration(object):
         
         # Data parameters
         # Path to the nodule blocks folder provided for the LUNA25 training data. 
-        self.DATADIR = Path("V:/projects/luna25/NLST/nodule_blocks")
+        self.DATADIR = Path("/Users/a19275473134/Desktop/luna25/luna25_nodule_blocks")
         # Path to the folder containing the CSVs for training and validation.
-        self.CSV_DIR = Path("V:/projects/luna25/dataset_csv")
+        self.CSV_DIR = Path("/Users/a19275473134/Desktop/luna25/Practical-luna25")        # We provide an NLST dataset CSV, but participants are responsible for splitting the data into training and validation sets.
         # We provide an NLST dataset CSV, but participants are responsible for splitting the data into training and validation sets.
         self.CSV_DIR_TRAIN = self.CSV_DIR / "train.csv" # Path to the training CSV
         self.CSV_DIR_VALID = self.CSV_DIR / "valid.csv" # Path to the validation CSV
@@ -27,14 +27,14 @@ class Configuration(object):
             self.EXPERIMENT_DIR.mkdir(parents=True)
             
         self.EXPERIMENT_NAME = "LUNA25-baseline"
-        self.MODE = "2D" # 2D or 3D
+        self.MODE = "3D" # 2D or 3D
 
         # Training parameters
         self.SEED = 2025
         self.NUM_WORKERS = 8
         self.SIZE_MM = 50
         self.SIZE_PX = 64
-        self.BATCH_SIZE = 32
+        self.BATCH_SIZE = 2
         self.ROTATION = ((-20, 20), (-20, 20), (-20, 20))
         self.TRANSLATION = True
         self.EPOCHS = 10
