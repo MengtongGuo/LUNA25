@@ -26,8 +26,9 @@ class Configuration(object):
         if not self.EXPERIMENT_DIR.exists():
             self.EXPERIMENT_DIR.mkdir(parents=True)
             
-        self.EXPERIMENT_NAME = "LUNA25-baseline"
-        self.MODE = "3D" # 2D or 3D
+        self.EXPERIMENT_NAME = "Practical-LUNA25"
+        # Please choose I3D or SE or Multimodal or Multimodal&SE
+        self.MODE = "SE" 
 
         # Training parameters
         self.SEED = 2025
